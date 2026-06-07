@@ -1,0 +1,9 @@
+# 运行时产物（不入库）
+automation/logs/
+automation/backups/
+automation/state/
+
+# 系统杂项
+Thumbs.db
+desktop.ini
+.DS_Store

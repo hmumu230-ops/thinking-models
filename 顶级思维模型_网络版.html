@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>顶级思维模型 · 网络版</title>
+<style>
+  :root{--bg:#0e1014;--panel:#161a22;--ink:#e8ecf3;--muted:#94a0b4;--line:#283040;--card:#1a1f29;}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:"Microsoft YaHei","PingFang SC","Segoe UI",system-ui,sans-serif;background:radial-gradient(1100px 760px at 30% 8%,#15203a 0%,var(--bg) 62%);color:var(--ink);overflow:hidden}
+  header{position:fixed;top:0;left:0;right:0;height:56px;z-index:40;display:flex;align-items:center;gap:14px;padding:0 16px;background:linear-gradient(180deg,rgba(14,16,20,.96),rgba(14,16,20,.75));border-bottom:1px solid var(--line);backdrop-filter:blur(6px)}
+  header h1{font-size:16px;margin:0;font-weight:700;white-space:nowrap}
+  header h1 span{color:#f5d36b}
+  .spacer{flex:1}
+  .seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .seg button{background:transparent;border:0;color:var(--muted);padding:7px 13px;font-size:12.5px;cursor:pointer}
+  .seg button.on{background:#28456e;color:#fff}
+  .btn{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer}
+  .btn:hover{border-color:#4a86ff}
+  #search{background:var(--card);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 11px;font-size:13px;width:150px;outline:none}
+  #search:focus{border-color:#4a86ff}
+  #zoomLabel{font-size:12px;color:var(--muted);min-width:38px;text-align:center}
+  #stage{position:absolute;inset:56px 340px 0 0;overflow:auto;cursor:grab}
+  #stage.grab{cursor:grabbing}
+  #canvas{position:relative;transform-origin:0 0;margin:30px}
+  svg#edges{position:absolute;top:0;left:0;overflow:visible;pointer-events:none;z-index:1}
+  #nodes{position:absolute;top:0;left:0;z-index:2}
+  .node{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;user-select:none}
+  .n-model{--c:#888;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--c);border-radius:13px;padding:4px 10px;font-size:11.5px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3);transition:transform .12s,box-shadow .12s}
+  .n-model:hover{transform:translate(-50%,-50%) scale(1.08);box-shadow:0 4px 16px rgba(0,0,0,.55);z-index:5}
+  .n-model .scope-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-left:5px;vertical-align:middle}
+  .n-hub{background:linear-gradient(135deg,var(--c),#0008);color:#fff;border:1px solid var(--c);border-radius:20px;padding:7px 14px;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 0 22px -4px var(--c);z-index:4}
+  .n-io{background:#11151d;border:1px dashed #3b465c;color:#cdd6e4;border-radius:9px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer}
+  .n-io.in{border-left:4px solid #5cc2a0;border-left-style:solid}
+  .n-io.out{border-right:4px solid #86b6ff;border-right-style:solid}
+  .n-io.out.hot{background:#173026;border-color:#5cc2a0;color:#d6f0e2;box-shadow:0 0 14px -3px #5cc2a0}
+  .n-sit{background:#11151d;border:1px solid #3b465c;color:#cdd6e4;border-radius:9px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer;transition:.12s}
+  .n-sit:hover{border-color:#6f7f9c}
+  .n-sit.on{background:linear-gradient(135deg,#2b6cb0,#1b4a7a);border-color:#5aa0ff;color:#fff;box-shadow:0 0 16px -2px #4a86ff}
+  .reco-item{display:flex;align-items:center;gap:8px;margin:8px 0;font-size:12.5px;line-height:1.4}
+  .reco-item .bar{height:8px;border-radius:4px;flex:none;min-width:14px}
+  .reco-item .nm{font-weight:700;cursor:pointer;white-space:nowrap}
+  .reco-item .nm:hover{text-decoration:underline}
+  .col-label{position:absolute;transform:translate(-50%,-50%);font-size:12px;color:var(--muted);font-weight:700;letter-spacing:2px;z-index:3}
+  .dim{opacity:.12;filter:grayscale(.5)}
+  .hot{box-shadow:0 0 0 2px #f5d36b,0 4px 18px rgba(0,0,0,.6)!important}
+  path.hot{opacity:.95!important;stroke-width:2.6px!important}
+  path.cold{opacity:.04!important}
+  /* detail panel */
+  #panel{position:fixed;top:56px;right:0;bottom:0;width:340px;background:var(--panel);border-left:1px solid var(--line);z-index:30;padding:18px 18px 30px;overflow:auto}
+  #panel .ph{color:var(--muted);font-size:12.5px;line-height:1.9}
+  #panel .ph b{color:var(--ink)}
+  .d-cn{font-size:19px;font-weight:800;margin:2px 0 1px}
+  .d-en{font-size:12px;color:var(--muted);font-style:italic;margin-bottom:12px}
+  .d-cat{display:inline-block;font-size:11px;font-weight:700;color:#0c0f14;border-radius:6px;padding:2px 8px;margin-bottom:12px}
+  .d-row{margin:11px 0;font-size:13px;line-height:1.62}
+  .d-row .lab{display:inline-block;font-size:11px;font-weight:700;color:#0c0f14;border-radius:5px;padding:1px 7px;margin-right:7px}
+  .lab.principle{background:#d8b46a}.lab.scope{background:#7fd1a0}.lab.use{background:#86b6ff}
+  .d-row .body{color:#dde4f0}
+  .d-meta{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);font-size:11.5px;color:#8a93a6;line-height:1.7}
+  .d-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .d-badges .b{font-size:11px;border:1px solid var(--line);border-radius:20px;padding:2px 9px;color:#aab4c6}
+  .d-badges .b.sc{color:#e6b96a;border-color:#5c4720}
+  .mlist{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+  .mlist .mi{font-size:12px;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--c,#888);border-radius:9px;padding:4px 9px;cursor:pointer}
+  .mlist .mi:hover{border-color:#4a86ff}
+  #legend{position:fixed;left:12px;bottom:12px;z-index:35;background:rgba(20,24,32,.92);border:1px solid var(--line);border-radius:10px;padding:9px 11px;max-width:220px}
+  #legend .t{font-size:11px;color:var(--muted);margin-bottom:6px}
+  #legend .i{display:flex;align-items:center;gap:7px;font-size:11.5px;margin:3px 0;cursor:pointer}
+  #legend .i .d{width:9px;height:9px;border-radius:50%}
+  #hint{position:fixed;left:50%;bottom:12px;transform:translateX(-50%);z-index:35;font-size:11.5px;color:var(--muted);background:rgba(20,24,32,.85);border:1px solid var(--line);border-radius:8px;padding:6px 12px}
+  #err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-size:14px;line-height:2;padding:40px}
+</style>
+</head>
+<body>
+<header>
+  <h1>顶级<span>思维模型</span> · 网络版</h1>
+  <div class="seg">
+    <button id="lensGalaxy" class="on">星系（按类）</button>
+    <button id="lensAnn">ANN：领域→模型→功能</button>
+    <button id="lensReco">🔮 推荐器</button>
+  </div>
+  <div class="spacer"></div>
+  <input id="search" placeholder="🔍 搜索…" autocomplete="off">
+  <button class="btn" id="zoomOut">－</button><span id="zoomLabel">100%</span><button class="btn" id="zoomIn">＋</button>
+  <button class="btn" id="reset">重置</button>
+</header>
+
+<div id="stage"><div id="canvas"><svg id="edges"></svg><div id="nodes"></div></div></div>
+
+<aside id="panel">
+  <div class="ph"><b>点击任意节点看详情。</b><br><br>
+  ▸ <b>星系</b>：52 个模型按 8 大类成簇，节点只留名字——概览全貌，点开才看内容（治"臃肿"）。<br><br>
+  ▸ <b>ANN 网络</b>：左=问题领域，中=模型，右=认知功能；连边 = 哪个领域激活哪些模型、它们驱动什么动作。<b>悬停</b>任一节点看它的"感受野+投射"（治"单一"）。<br><br>
+  ▸ 节点右侧小圆点：<span style="color:#e6b96a">●</span> 特例 / <span style="color:#7fd1a0">●</span> 通用——连接度越高=越通用。</div>
+</aside>
+
+<div id="legend"><div class="t">分类（点击高亮）</div><div id="legendItems"></div></div>
+<div id="hint">滚轮缩放 · 拖拽平移 · 点节点看详情 · ANN 视图悬停看连线</div>
+<div id="err">⚠️ 没读到 <b>思维模型库.js</b>，请确保它与本文件在同一文件夹。</div>
+
+<script src="思维模型库.js"></script>
+<script>
+if(!window.MM){ document.getElementById('err').style.display='flex'; }
+else (function(){
+  const MM=window.MM;
+  const cats=MM.categories, colorOf={}; cats.forEach(c=>colorOf[c.cat]=c.color);
+  const D=MM.disciplines, F=MM.functions, models=MM.models;
+  const W=1500, H=1080;
+  let lens='galaxy', scale=1, selectedSit=new Set(), recoPos={sit:{},model:{},func:{}};
+  const SITUATIONS=[
+   {name:'不确定·风险',kw:['不确定','风险','概率','未知','随机','波动','下行','黑天鹅','预测','押注','投资','保险','赔率','仓位','估值']},
+   {name:'要做决策·取舍',kw:['决策','选择','选项','取舍','权衡','该不该','行动','判断','机会成本','优先']},
+   {name:'多方博弈·谈判',kw:['博弈','竞争','对手','谈判','合作','对方','囚徒','纳什','价格','均衡','利益','背叛']},
+   {name:'拖延·自控·长期',kw:['拖延','自控','即时','长期','延迟','意志','习惯','诱惑','储蓄','承诺','贴现']},
+   {name:'信息过载·复杂',kw:['信息','过载','复杂','多因素','海量','繁杂','负荷','记忆']},
+   {name:'学习·精进',kw:['学习','记忆','练习','技能','复习','备考','精进','教学','刻意','心流','元认知','组块']},
+   {name:'易偏误·要纠错',kw:['偏误','偏差','直觉','错觉','误判','反例','复盘','纠偏','归因','锚定','幸存','失调','确认']},
+   {name:'看清本质·创新',kw:['本质','拆解','第一性','假设','创新','重构','简化','剃刀','证伪','根因','推演']},
+   {name:'动机·说服·人',kw:['激励','动机','说服','态度','行为','需求','内在','自主','胜任','联结','认同','满足']},
+   {name:'系统·动态·演化',kw:['系统','反馈','网络','涌现','临界','增长','回路','演化','熵','蝴蝶','相变','枢纽','护城河']},
+   {name:'资源·优先级',kw:['资源','优先','时间管理','分配','成本','精力','关键','二八','帕累托','聚焦','配置']},
+   {name:'韧性·容错·留余地',kw:['韧性','冗余','安全边际','脆弱','容错','缓冲','保留','余地','反脆弱','可选性']},
+  ];
+  const stage=document.getElementById('stage'), canvas=document.getElementById('canvas'),
+        svg=document.getElementById('edges'), nodesEl=document.getElementById('nodes'),
+        panel=document.getElementById('panel');
+
+  /* ---------- layouts ---------- */
+  function galaxy(){
+    const cx=W/2, cy=H/2, hubR=240, nodes=[], edges=[];
+    cats.forEach((c,i)=>{
+      const ang=(-90+i*45)*Math.PI/180;
+      const hx=cx+hubR*Math.cos(ang), hy=cy+hubR*Math.sin(ang);
+      nodes.push({id:'cat'+i,x:hx,y:hy,type:'hub',label:c.cat,color:c.color});
+      const ms=models.filter(m=>m.cat===c.cat);
+      ms.forEach((m,j)=>{
+        const ring=Math.floor(j/4), inRing=j%4, perRing=Math.min(4,ms.length-ring*4);
+        const r=hubR+100+ring*74, aoff=(inRing-(perRing-1)/2)*0.165, a=ang+aoff;
+        nodes.push({id:m.id,x:cx+r*Math.cos(a),y:cy+r*Math.sin(a),type:'model',model:m,label:m.cn,color:colorOf[m.cat]});
+        edges.push({x1:hx,y1:hy,x2:cx+r*Math.cos(a),y2:cy+r*Math.sin(a),color:c.color,faint:true,mid:m.id});
+      });
+    });
+    return {nodes,edges,labels:[]};
+  }
+  function ann(){
+    const cd=200, cm=720, cf=1240, top=80, bot=H-80, nodes=[], edges=[], labels=[];
+    labels.push({x:cd,y:30,t:'问题领域 / 情境'},{x:cm,y:30,t:'思维模型'},{x:cf,y:30,t:'认知功能 / 行动'});
+    const discY={}, funcY={};
+    D.forEach((d,i)=>{const y=top+i*((bot-top)/(D.length-1));discY[d]=y;nodes.push({id:'in'+i,x:cd,y,type:'io',io:'in',label:d,key:'in:'+d});});
+    F.forEach((f,i)=>{const y=top+i*((bot-top)/(F.length-1));funcY[f]=y;nodes.push({id:'out'+i,x:cf,y,type:'io',io:'out',label:f,key:'out:'+f});});
+    const ord=[...models].sort((a,b)=> D.indexOf(a.disc)-D.indexOf(b.disc) || F.indexOf(a.func)-F.indexOf(b.func));
+    ord.forEach((m,i)=>{
+      const y=50+i*((H-100)/(ord.length-1)), x=cm, col=colorOf[m.cat];
+      nodes.push({id:m.id,x,y,type:'model',model:m,label:m.cn,color:col});
+      edges.push({x1:cd,y1:discY[m.disc],x2:x,y2:y,color:col,mid:m.id,key:'in:'+m.disc});
+      edges.push({x1:x,y1:y,x2:cf,y2:funcY[m.func],color:col,mid:m.id,key:'out:'+m.func});
+    });
+    return {nodes,edges,labels};
+  }
+
+  /* ---------- recommender (forward pass) ---------- */
+  function recoScore(m){
+    const text=m.principle+m.scope+m.use+m.disc+m.func+m.cn;
+    let score=0, matched=[];
+    selectedSit.forEach(i=>{ let hits=0; SITUATIONS[i].kw.forEach(k=>{ if(text.indexOf(k)>=0) hits++; }); if(hits>0){score+=hits;matched.push(i);} });
+    return {m,score,matched};
+  }
+  function renderReco(){
+    nodesEl.innerHTML=''; svg.innerHTML='';
+    svg.setAttribute('viewBox','0 0 '+W+' '+H); svg.setAttribute('width',W); svg.setAttribute('height',H);
+    canvas.style.width=W+'px'; canvas.style.height=H+'px';
+    const cs=210, cm=750, cf=1290, top=70, bot=H-70;
+    recoPos={sit:{},model:{},func:{}};
+    [['情境 · 点击勾选',cs],['思维模型',cm],['认知功能',cf]].forEach(p=>{const e=document.createElement('div');e.className='col-label';e.style.left=p[1]+'px';e.style.top='28px';e.textContent=p[0];nodesEl.appendChild(e);});
+    SITUATIONS.forEach((s,i)=>{
+      const y=top+i*((bot-top)/(SITUATIONS.length-1)); recoPos.sit[i]={x:cs,y};
+      const d=document.createElement('div'); d.className='node n-sit'+(selectedSit.has(i)?' on':''); d.style.left=cs+'px'; d.style.top=y+'px'; d.textContent=s.name;
+      d.onclick=ev=>{ev.stopPropagation(); if(selectedSit.has(i))selectedSit.delete(i); else selectedSit.add(i); d.classList.toggle('on'); updateReco();};
+      nodesEl.appendChild(d);
+    });
+    F.forEach((f,i)=>{ const y=top+i*((bot-top)/(F.length-1)); recoPos.func[f]={x:cf,y};
+      const d=document.createElement('div'); d.className='node n-io out'; d.style.left=cf+'px'; d.style.top=y+'px'; d.textContent=f; d.dataset.func=f; nodesEl.appendChild(d);
+    });
+    const ord=[...models].sort((a,b)=>cats.findIndex(c=>c.cat===a.cat)-cats.findIndex(c=>c.cat===b.cat));
+    ord.forEach((m,i)=>{ const y=44+i*((H-88)/(ord.length-1)); recoPos.model[m.id]={x:cm,y};
+      const d=document.createElement('div'); d.className='node n-model'; d.style.left=cm+'px'; d.style.top=y+'px'; d.style.setProperty('--c',colorOf[m.cat]);
+      const sc=m.scope_type; const dot=sc?'<span class="scope-dot" style="background:'+(sc==='特例'?'#e6b96a':(sc==='通用'?'#7fd1a0':'#86b6ff'))+'"></span>':'';
+      d.innerHTML=m.cn+dot; d.dataset.id=m.id; d.dataset.search=(m.cn+m.en+m.principle+m.scope+m.use+m.disc+m.func).toLowerCase();
+      d.onclick=ev=>{ev.stopPropagation();showModel(m);}; d.onmouseenter=()=>highlight('mid',m.id); d.onmouseleave=()=>highlight();
+      nodesEl.appendChild(d);
+    });
+    updateReco(); applySearch();
+  }
+  function updateReco(){
+    const results=models.map(recoScore);
+    const fired=results.filter(r=>r.score>0).sort((a,b)=>b.score-a.score);
+    const maxScore=Math.max(1,...fired.map(r=>r.score));
+    const firedIds=new Set(fired.map(r=>r.m.id));
+    const funcActive={}; fired.forEach(r=>{funcActive[r.m.func]=(funcActive[r.m.func]||0)+r.score;});
+    let sh='';
+    if(selectedSit.size){ fired.forEach(r=>{ const mp=recoPos.model[r.m.id], col=colorOf[r.m.cat];
+      r.matched.forEach(i=>{ const sp=recoPos.sit[i]; const c=Math.max(50,(mp.x-sp.x)/2); sh+='<path d="M '+sp.x+' '+sp.y+' C '+(sp.x+c)+' '+sp.y+', '+(mp.x-c)+' '+mp.y+', '+mp.x+' '+mp.y+'" stroke="'+col+'" stroke-width="1.4" fill="none" opacity="0.42" data-mid="'+r.m.id+'"/>'; });
+      const fp=recoPos.func[r.m.func]; if(fp){ const c=Math.max(50,(fp.x-mp.x)/2); sh+='<path d="M '+mp.x+' '+mp.y+' C '+(mp.x+c)+' '+mp.y+', '+(fp.x-c)+' '+fp.y+', '+fp.x+' '+fp.y+'" stroke="'+col+'" stroke-width="1.4" fill="none" opacity="0.42" data-mid="'+r.m.id+'"/>'; }
+    }); }
+    svg.innerHTML=sh;
+    nodesEl.querySelectorAll('.n-model').forEach(el=>{
+      const r=results.find(x=>x.m.id===el.dataset.id);
+      if(!selectedSit.size){ el.classList.remove('dim'); el.style.boxShadow=''; el.style.transform='translate(-50%,-50%)'; return; }
+      if(firedIds.has(el.dataset.id)){ el.classList.remove('dim'); const t=r.score/maxScore; el.style.boxShadow='0 0 '+(7+t*18)+'px -2px '+colorOf[r.m.cat]; el.style.transform='translate(-50%,-50%) scale('+(1+t*0.22)+')'; }
+      else { el.classList.add('dim'); el.style.boxShadow=''; el.style.transform='translate(-50%,-50%)'; }
+    });
+    nodesEl.querySelectorAll('.n-io.out').forEach(el=>{ const a=funcActive[el.dataset.func]; el.classList.remove('hot','dim'); if(selectedSit.size){ if(a)el.classList.add('hot'); else el.classList.add('dim'); } });
+    renderRecoPanel(fired, funcActive, maxScore);
+  }
+  function renderRecoPanel(fired, funcActive, maxScore){
+    if(!selectedSit.size){ panel.innerHTML='<div class="ph"><b>🔮 推荐器 · 前向传播</b><br><br>点击左侧的<b>情境</b>节点（可多选）。被激活的模型会点亮、按相关度放大，连线流向它们驱动的<b>认知功能</b>，这里给出<b>推荐顺序</b>。<br><br>试试：选「不确定·风险」+「要做决策·取舍」。</div>'; return; }
+    const sel=[...selectedSit].map(i=>SITUATIONS[i].name).join(' + ');
+    const topFunc=Object.keys(funcActive).sort((a,b)=>funcActive[b]-funcActive[a]).slice(0,3);
+    let html='<div class="d-cat" style="background:#39507a">推荐 · '+fired.length+' 个模型被激活</div><div class="d-en" style="margin-bottom:10px">情境：'+sel+'</div>';
+    if(topFunc.length) html+='<div class="ph" style="margin-bottom:10px">主要指向：<b>'+topFunc.join(' · ')+'</b></div>';
+    html+=fired.slice(0,12).map(r=>{ const w=Math.round(16+(r.score/maxScore)*120); return '<div class="reco-item"><span class="bar" style="width:'+w+'px;background:'+colorOf[r.m.cat]+'"></span><span class="nm" data-id="'+r.m.id+'">'+r.m.cn+'</span><span style="color:#8a93a6;font-size:11px">'+r.m.use+'</span></div>'; }).join('');
+    panel.innerHTML=html;
+    panel.querySelectorAll('.nm').forEach(e=>e.onclick=()=>{const m=models.find(x=>x.id===e.dataset.id);if(m)showModel(m);});
+  }
+
+  /* ---------- render ---------- */
+  function render(){
+    const L = lens==='galaxy'?galaxy():ann();
+    nodesEl.innerHTML='';
+    let sh='';
+    L.edges.forEach(e=>{
+      let d;
+      if(lens==='ann'){const c=Math.max(50,Math.abs(e.x2-e.x1)/2);d=`M ${e.x1} ${e.y1} C ${e.x1+c} ${e.y1}, ${e.x2-c} ${e.y2}, ${e.x2} ${e.y2}`;}
+      else d=`M ${e.x1} ${e.y1} L ${e.x2} ${e.y2}`;
+      sh+=`<path d="${d}" stroke="${e.color}" stroke-width="${lens==='ann'?1.3:1}" fill="none" opacity="${e.faint?0.16:0.30}" data-mid="${e.mid||''}" data-key="${e.key||''}"/>`;
+    });
+    svg.innerHTML=sh; svg.setAttribute('viewBox',`0 0 ${W} ${H}`); svg.setAttribute('width',W); svg.setAttribute('height',H);
+    (L.labels||[]).forEach(l=>{const e=document.createElement('div');e.className='col-label';e.style.left=l.x+'px';e.style.top=l.y+'px';e.textContent=l.t;nodesEl.appendChild(e);});
+    L.nodes.forEach(n=>{
+      const d=document.createElement('div');
+      d.style.left=n.x+'px'; d.style.top=n.y+'px';
+      if(n.color) d.style.setProperty('--c',n.color);
+      if(n.type==='model'){
+        d.className='node n-model';
+        const sc=n.model.scope_type;
+        const dot = sc? `<span class="scope-dot" style="background:${sc==='特例'?'#e6b96a':(sc==='通用'?'#7fd1a0':'#86b6ff')}"></span>`:'';
+        d.innerHTML=n.label+dot;
+        d.dataset.id=n.model.id;
+        d.dataset.search=(n.model.cn+n.model.en+n.model.principle+n.model.scope+n.model.use+n.model.disc+n.model.func).toLowerCase();
+        d.onclick=ev=>{ev.stopPropagation();showModel(n.model);};
+        d.onmouseenter=()=>highlight('mid',n.model.id);
+        d.onmouseleave=()=>highlight();
+      } else if(n.type==='io'){
+        d.className='node n-io '+n.io;
+        d.textContent=n.label;
+        d.onmouseenter=()=>highlight('key',n.key);
+        d.onmouseleave=()=>highlight();
+        d.onclick=ev=>{ev.stopPropagation();showIO(n);};
+      } else {
+        d.className='node n-hub'; d.textContent=n.label;
+        d.onclick=ev=>{ev.stopPropagation();showCat(n.label);};
+      }
+      nodesEl.appendChild(d);
+    });
+    canvas.style.width=W+'px'; canvas.style.height=H+'px';
+    applySearch();
+  }
+  function highlight(mode,val){
+    svg.querySelectorAll('path').forEach(p=>{
+      if(!mode){p.classList.remove('hot','cold');return;}
+      const m = mode==='mid'? p.dataset.mid===val : p.dataset.key===val;
+      p.classList.toggle('hot',m); p.classList.toggle('cold',!m);
+    });
+  }
+
+  /* ---------- detail panel ---------- */
+  function showModel(m){
+    const c=colorOf[m.cat];
+    const sc=m.scope_type, pd=(m.proven_domains&&m.proven_domains.length)?(' · 已验证'+m.proven_domains.length+'域'):'';
+    panel.innerHTML=`
+      <div class="d-cat" style="background:${c}">${m.cat}</div>
+      <div class="d-cn">${m.cn}</div><div class="d-en">${m.en}</div>
+      <div class="d-row"><span class="lab principle">原理</span><span class="body">${m.principle}</span></div>
+      <div class="d-row"><span class="lab scope">适用</span><span class="body">${m.scope}</span></div>
+      <div class="d-row"><span class="lab use">用途</span><span class="body">${m.use}</span></div>
+      ${m.example?`<div style="margin:12px 0;padding:10px 12px;background:#1c2533;border:1px solid #2f3b50;border-left:3px solid #f5d36b;border-radius:9px;font-size:12.5px;line-height:1.66;color:#dce4f0"><b style="color:#f5d36b">💡 经典例证</b><br>${m.example}</div>`:''}
+      <div class="d-badges">
+        <span class="b">领域：${m.disc}</span><span class="b">功能：${m.func}</span>
+        ${sc?`<span class="b sc">${sc}${pd}</span>`:''}<span class="b">先验 ${m.general}/5</span>
+      </div>
+      <div class="d-meta"><b>出处 · </b>${m.src}</div>`;
+  }
+  function listHTML(ms){return '<div class="mlist">'+ms.map(m=>`<span class="mi" style="--c:${colorOf[m.cat]}" data-id="${m.id}">${m.cn}</span>`).join('')+'</div>';}
+  function bindList(){panel.querySelectorAll('.mi').forEach(e=>e.onclick=()=>{const m=models.find(x=>x.id===e.dataset.id);if(m)showModel(m);});}
+  function showIO(n){
+    const isIn=n.io==='in', key=n.label;
+    const ms=models.filter(m=> isIn? m.disc===key : m.func===key);
+    panel.innerHTML=`<div class="d-cat" style="background:#39507a">${isIn?'问题领域':'认知功能'}</div>
+      <div class="d-cn">${key}</div><div class="d-en">${isIn?'这个领域会激活的模型':'指向这个功能/动作的模型'}（${ms.length}）</div>${listHTML(ms)}`;
+    bindList();
+  }
+  function showCat(label){
+    const ms=models.filter(m=>m.cat===label);
+    panel.innerHTML=`<div class="d-cat" style="background:${colorOf[label]}">${label}</div>
+      <div class="d-cn" style="font-size:16px">${label}</div><div class="d-en">${ms.length} 个模型</div>${listHTML(ms)}`;
+    bindList();
+  }
+
+  /* ---------- search / legend / zoom / pan ---------- */
+  const search=document.getElementById('search');
+  function applySearch(){
+    const q=search.value.trim().toLowerCase();
+    nodesEl.querySelectorAll('.n-model').forEach(el=>{
+      el.classList.remove('dim','hot');
+      if(!q)return; el.dataset.search.includes(q)?el.classList.add('hot'):el.classList.add('dim');
+    });
+  }
+  search.oninput=applySearch;
+  const li=document.getElementById('legendItems');
+  cats.forEach(c=>{const e=document.createElement('div');e.className='i';e.innerHTML=`<span class="d" style="background:${c.color};box-shadow:0 0 8px ${c.color}"></span>${c.cat}`;
+    e.onclick=()=>{nodesEl.querySelectorAll('.n-model').forEach(el=>{const m=models.find(x=>x.id===el.dataset.id);el.classList.remove('dim','hot');if(m){m.cat===c.cat?el.classList.add('hot'):el.classList.add('dim');}});};li.appendChild(e);});
+
+  const zl=document.getElementById('zoomLabel');
+  function zoom(){canvas.style.transform=`scale(${scale})`;zl.textContent=Math.round(scale*100)+'%';}
+  document.getElementById('zoomIn').onclick=()=>{scale=Math.min(2,scale+0.1);zoom();};
+  document.getElementById('zoomOut').onclick=()=>{scale=Math.max(0.3,scale-0.1);zoom();};
+  document.getElementById('reset').onclick=()=>{scale=lens==='ann'?0.8:0.85;zoom();stage.scrollTo({left:(W*scale-stage.clientWidth)/2,top:0,behavior:'smooth'});};
+  stage.addEventListener('wheel',e=>{if(e.ctrlKey||e.metaKey){e.preventDefault();scale=Math.min(2,Math.max(0.3,scale+(e.deltaY<0?0.08:-0.08)));zoom();}},{passive:false});
+  let drag=false,sx,sy,sl,st;
+  stage.addEventListener('mousedown',e=>{if(e.target.closest('.node'))return;drag=true;stage.classList.add('grab');sx=e.clientX;sy=e.clientY;sl=stage.scrollLeft;st=stage.scrollTop;});
+  window.addEventListener('mousemove',e=>{if(!drag)return;stage.scrollLeft=sl-(e.clientX-sx);stage.scrollTop=st-(e.clientY-sy);});
+  window.addEventListener('mouseup',()=>{drag=false;stage.classList.remove('grab');});
+  stage.addEventListener('click',e=>{if(!e.target.closest('.node'))highlight();});
+
+  function setLens(l){
+    lens=l;
+    document.getElementById('lensGalaxy').classList.toggle('on',l==='galaxy');
+    document.getElementById('lensAnn').classList.toggle('on',l==='ann');
+    document.getElementById('lensReco').classList.toggle('on',l==='reco');
+    if(l==='reco') renderReco(); else render();
+    scale=(l==='galaxy')?0.85:0.78; zoom();
+    stage.scrollTo({left:(W*scale-stage.clientWidth)/2, top:0});
+  }
+  document.getElementById('lensGalaxy').onclick=()=>setLens('galaxy');
+  document.getElementById('lensAnn').onclick=()=>setLens('ann');
+  document.getElementById('lensReco').onclick=()=>setLens('reco');
+
+  render(); setLens('galaxy');
+})();
+</script>
+</body>
+</html>

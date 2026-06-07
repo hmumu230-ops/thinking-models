@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>顶级思维模型 · 可迭代树状网络</title>
+<style>
+  :root{
+    --bg:#0f1116; --panel:#161a22; --ink:#e8ecf3; --muted:#9aa6b8;
+    --line:#2a3140; --card:#1b202a; --root:#f5d36b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB","Segoe UI",system-ui,sans-serif;
+    background:radial-gradient(1200px 800px at 18% 12%, #182032 0%, var(--bg) 60%);
+    color:var(--ink);overflow:hidden;
+  }
+  header{
+    position:fixed;top:0;left:0;right:0;height:60px;z-index:30;
+    display:flex;align-items:center;gap:16px;padding:0 18px;
+    background:linear-gradient(180deg,rgba(15,17,22,.96),rgba(15,17,22,.78));
+    border-bottom:1px solid var(--line);backdrop-filter:blur(6px);
+  }
+  header h1{font-size:17px;margin:0;font-weight:700;letter-spacing:.5px;white-space:nowrap}
+  header h1 span{color:var(--root)}
+  .stat{font-size:11.5px;color:var(--muted);white-space:nowrap}
+  .stat b{color:var(--ink)}
+  .spacer{flex:1}
+  .tools{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+  .seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .seg button{background:transparent;border:0;color:var(--muted);padding:7px 12px;font-size:12.5px;cursor:pointer}
+  .seg button.on{background:#28456e;color:#fff}
+  .btn{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:12px;cursor:pointer;transition:.15s;white-space:nowrap}
+  .btn:hover{border-color:#4a86ff;background:#1f2737}
+  #search{background:var(--card);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 11px;font-size:13px;width:170px;outline:none}
+  #search:focus{border-color:#4a86ff}
+  /* ---- tree stage ---- */
+  #stage{position:absolute;inset:60px 0 0 0;overflow:auto;cursor:grab}
+  #stage.grabbing{cursor:grabbing}
+  #canvas{position:relative;transform-origin:0 0;padding:40px 60px 90px 40px;width:max-content}
+  svg#links{position:absolute;top:0;left:0;pointer-events:none;overflow:visible;z-index:1}
+  #content{position:relative;display:flex;align-items:center;gap:90px;z-index:2}
+  .root{background:linear-gradient(135deg,#f5d36b,#e7b53c);color:#2a2208;font-weight:800;font-size:19px;padding:20px 22px;border-radius:18px;box-shadow:0 8px 30px rgba(245,211,107,.25);text-align:center;line-height:1.35;max-width:150px}
+  .root small{display:block;font-size:10.5px;font-weight:600;color:#5c4a12;margin-top:4px;letter-spacing:.5px}
+  .cats{display:flex;flex-direction:column;gap:22px}
+  .cat-row{display:flex;align-items:center;gap:56px}
+  .cat{--c:#888;cursor:pointer;user-select:none;background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--c);border-radius:12px;padding:12px 15px;min-width:182px;max-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.25);transition:.15s}
+  .cat:hover{transform:translateX(2px)}
+  .cat.cand{border-style:dashed;border-left-style:solid;opacity:.92}
+  .cat .cat-name{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .cat .dot{width:10px;height:10px;border-radius:50%;background:var(--c);flex:none;box-shadow:0 0 10px var(--c)}
+  .cat .cat-en{font-size:10.5px;color:var(--muted);margin-top:3px}
+  .cat .cat-meta{font-size:11px;color:var(--c);margin-top:6px;font-weight:600}
+  .cat .chev{float:right;transition:.2s;color:var(--muted);font-size:12px}
+  .cat.collapsed .chev{transform:rotate(-90deg)}
+  .models{display:flex;flex-direction:column;gap:13px}
+  .cat-row.collapsed .models{display:none}
+  .model{--c:#888;position:relative;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:11px;padding:11px 13px;width:358px;box-shadow:0 3px 12px rgba(0,0,0,.22);transition:.15s}
+  .model:hover{transform:translateX(3px);border-color:var(--c)}
+  .model.cand{border-style:dashed;border-left-style:solid;background:#191c22}
+  .model .m-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+  .model .m-cn{font-size:14.5px;font-weight:700}
+  .model .m-en{font-size:10.5px;color:var(--muted);font-style:italic}
+  .model .m-principle{font-size:12.5px;line-height:1.55;color:#dfe6f1;margin-bottom:7px}
+  .model .row{display:flex;gap:6px;font-size:11.5px;line-height:1.5;margin-top:3px}
+  .model .tag{flex:none;font-size:10px;font-weight:700;color:#0c0f14;border-radius:5px;padding:1px 6px;height:fit-content;margin-top:1px}
+  .model .tag.scope{background:#7fd1a0}
+  .model .tag.use{background:#86b6ff}
+  .model .row .txt{color:var(--muted)}
+  .model .m-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:10px;color:#6f7b8d;margin-top:8px;padding-top:7px;border-top:1px dashed var(--line)}
+  .model .m-foot .src{flex:1;min-width:140px;line-height:1.4}
+  .model .badge{border:1px solid var(--line);border-radius:20px;padding:1px 7px;white-space:nowrap}
+  .model .badge.new{color:#f5d36b;border-color:#5c4f1f}
+  .model .badge.gen{color:#86b6ff;border-color:#284a6e}
+  .model .badge.candb{color:#e0a64a;border-color:#5c4720}
+  .model .badge.scope-t{color:#e6b96a;border-color:#5c4720}
+  .dim{opacity:.14;filter:grayscale(.6)}
+  .hit{box-shadow:0 0 0 2px #f5d36b,0 6px 20px rgba(0,0,0,.5)!important}
+  /* ---- coverage map ---- */
+  #mapView{position:absolute;inset:60px 0 0 0;overflow:auto;padding:26px 30px 80px;display:none}
+  #mapView h2{font-size:16px;margin:0 0 4px}
+  #mapView .lead{font-size:12.5px;color:var(--muted);margin:0 0 18px;line-height:1.6;max-width:880px}
+  #mapView .lead b{color:var(--root)}
+  table.cov{border-collapse:separate;border-spacing:5px}
+  table.cov th{font-size:11.5px;color:var(--muted);font-weight:600;padding:5px;text-align:center;vertical-align:bottom}
+  table.cov th.rowh{text-align:right;white-space:nowrap;padding-right:10px;max-width:130px}
+  table.cov th.colh{height:74px}
+  table.cov th.colh div{writing-mode:vertical-rl;transform:rotate(180deg);margin:0 auto;letter-spacing:1px}
+  table.cov td.cell{width:60px;height:46px;border-radius:8px;text-align:center;font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--line);transition:.12s;position:relative}
+  table.cov td.cell:hover{outline:2px solid #fff}
+  table.cov td.tot{font-size:11px;color:var(--muted);font-weight:600;background:transparent;border:0;cursor:default}
+  .gap-panel{margin-top:24px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;max-width:880px}
+  .gap-panel h3{margin:0 0 10px;font-size:14px}
+  .gap-panel .gaps{display:flex;flex-wrap:wrap;gap:8px}
+  .gap-chip{font-size:12px;background:#241c1c;border:1px solid #5c2f2f;color:#f0b0a8;border-radius:20px;padding:5px 11px}
+  .gap-chip.b{background:#1c2440;border-color:#2f3f6c;color:#a8c0f0}
+  #cellList{margin-top:18px;font-size:12.5px;color:var(--muted);line-height:1.7;max-width:880px}
+  #cellList b{color:var(--ink)}
+  /* ---- legend / hint ---- */
+  #legend{position:fixed;left:14px;bottom:14px;z-index:20;background:rgba(22,26,34,.9);border:1px solid var(--line);border-radius:10px;padding:9px 12px;max-width:230px;backdrop-filter:blur(4px)}
+  #legend .lg-title{font-size:11px;color:var(--muted);margin-bottom:6px}
+  #legend .lg-item{display:flex;align-items:center;gap:7px;font-size:11.5px;margin:3px 0;cursor:pointer}
+  #legend .lg-item .d{width:9px;height:9px;border-radius:50%;flex:none}
+  #legend.hide{display:none}
+  #hint{position:fixed;right:14px;bottom:14px;z-index:20;font-size:11px;color:var(--muted);background:rgba(22,26,34,.85);border:1px solid var(--line);border-radius:8px;padding:7px 11px}
+  #zoomLabel{font-size:12px;color:var(--muted);min-width:40px;text-align:center}
+  #err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-size:14px;line-height:2;padding:40px}
+  @media print{header,#legend,#hint,.tools{display:none}#stage{position:static;overflow:visible}body{overflow:visible;background:#fff;color:#111}}
+</style>
+</head>
+<body>
+<header>
+  <h1>顶级<span>思维模型</span> · 可迭代树状网络</h1>
+  <div class="stat" id="stats">加载中…</div>
+  <div class="spacer"></div>
+  <div class="tools">
+    <div class="seg"><button id="vTree" class="on">树状网络</button><button id="vMap">覆盖度地图</button></div>
+    <input id="search" placeholder="🔍 搜索…" autocomplete="off">
+    <button class="btn" id="expandAll">展开</button>
+    <button class="btn" id="collapseAll">收起</button>
+    <button class="btn" id="zoomOut">－</button><span id="zoomLabel">100%</span><button class="btn" id="zoomIn">＋</button>
+    <button class="btn" id="printBtn">打印/PDF</button>
+  </div>
+</header>
+
+<div id="stage">
+  <div id="canvas">
+    <svg id="links"></svg>
+    <div id="content">
+      <div class="root" id="rootNode">顶级思维模型<small>TOP MENTAL MODELS</small></div>
+      <div class="cats" id="cats"></div>
+    </div>
+  </div>
+</div>
+
+<div id="mapView">
+  <h2>覆盖度地图 · 学科 × 功能</h2>
+  <p class="lead">每格 = 落在该「学科×功能」的<b>核心</b>模型数。<b>暗红空格 = 缺失区间</b>（该认知功能在这个学科下还没有模型，是优先补充的方向）；行/列末尾未出现的维度 = <b>待扩展的边界</b>。点击任一格查看该格的模型。待审区不计入覆盖，升核心后才计。</p>
+  <div id="covTable"></div>
+  <div id="cellList"></div>
+  <div class="gap-panel">
+    <h3>🎯 系统给出的补充建议（最空的格子 → 下一步收集方向）</h3>
+    <div class="gaps" id="gapList"></div>
+  </div>
+</div>
+
+<div id="legend"><div class="lg-title">分类导航（点击高亮）</div><div id="legendItems"></div></div>
+<div id="hint">滚轮缩放 · 拖拽平移 · 点分类可折叠</div>
+<div id="err">⚠️ 没读到数据文件 <b>思维模型库.js</b>。<br>请确保它和本 HTML 在<b>同一文件夹</b>，然后刷新。</div>
+
+<script src="思维模型库.js"></script>
+<script>
+if(!window.MM){ document.getElementById('err').style.display='flex'; }
+else (function(){
+  const MM = window.MM;
+  const colorOf = {}; MM.categories.forEach(c=>colorOf[c.cat]=c.color);
+  const enOf = {}; MM.categories.forEach(c=>enOf[c.cat]=c.en);
+  const core = MM.models.filter(m=>m.status==='core');
+  const cand = MM.models.filter(m=>m.status==='candidate');
+
+  /* ---------- 顶部统计 ---------- */
+  // 覆盖格数（核心模型占据的不同 学科×功能 组合）
+  const covSet = new Set(core.map(m=>m.disc+'|'+m.func));
+  const totalCells = MM.disciplines.length*MM.functions.length;
+  document.getElementById('stats').innerHTML =
+    `<b>${MM.categories.length}</b> 大类 · 核心 <b>${core.length}</b> · 待审 <b>${cand.length}</b> · 覆盖 <b>${covSet.size}</b>/${totalCells} 格 · 更新 ${MM.updated}`;
+
+  /* ---------- 卡片 HTML ---------- */
+  function cardHTML(m){
+    const isNew = m.added===MM.updated;
+    return `<div class="model${m.status==='candidate'?' cand':''}" style="--c:${colorOf[m.cat]||'#888'}"
+              data-id="${m.id}" data-disc="${m.disc}" data-func="${m.func}"
+              data-search="${(m.cn+' '+m.en+' '+m.principle+' '+m.scope+' '+m.use+' '+m.src+' '+m.disc+' '+m.func).toLowerCase()}">
+      <div class="m-head"><span class="m-cn">${m.cn}</span><span class="m-en">${m.en}</span></div>
+      <div class="m-principle">${m.principle}</div>
+      <div class="row"><span class="tag scope">适用</span><span class="txt">${m.scope}</span></div>
+      <div class="row"><span class="tag use">用途</span><span class="txt">${m.use}</span></div>
+      ${m.example?`<div style="font-size:11.5px;line-height:1.55;color:#cdd6e4;background:#1b2433;border-left:3px solid #d8b46a;border-radius:7px;padding:6px 9px;margin-top:8px">💡 ${m.example}</div>`:''}
+      <div class="m-foot">
+        <span class="src">${m.src}</span>
+        ${m.status==='candidate'?'<span class="badge candb">待审</span>':''}
+        ${m.scope_type?`<span class="badge scope-t">${m.scope_type}${(m.proven_domains&&m.proven_domains.length)?' · 已验证'+m.proven_domains.length+'域':''}</span>`:''}
+        <span class="badge gen">先验 ${m.general}/5</span>
+        <span class="badge${isNew?' new':''}">+${m.added.slice(5)}</span>
+      </div></div>`;
+  }
+
+  /* ---------- 渲染树 ---------- */
+  const catsEl=document.getElementById('cats'), legendItems=document.getElementById('legendItems');
+  MM.categories.forEach((c,ci)=>{
+    const list=core.filter(m=>m.cat===c.cat);
+    const row=document.createElement('div'); row.className='cat-row'; row.dataset.ci=ci;
+    const cat=document.createElement('div'); cat.className='cat'; cat.style.setProperty('--c',c.color);
+    cat.innerHTML=`<span class="chev">▼</span><div class="cat-name"><span class="dot"></span>${c.cat}</div>
+      <div class="cat-en">${c.en}</div><div class="cat-meta">${list.length} 个模型</div>`;
+    const models=document.createElement('div'); models.className='models';
+    models.innerHTML=list.map(cardHTML).join('');
+    cat.onclick=()=>{row.classList.toggle('collapsed');cat.classList.toggle('collapsed');draw();};
+    row.append(cat,models); catsEl.appendChild(row);
+    const lg=document.createElement('div'); lg.className='lg-item';
+    lg.innerHTML=`<span class="d" style="background:${c.color};box-shadow:0 0 8px ${c.color}"></span>${c.cat}`;
+    lg.onclick=()=>highlightCat(ci); legendItems.appendChild(lg);
+  });
+  // 待审外环
+  if(cand.length){
+    const row=document.createElement('div'); row.className='cat-row cand-row'; row.dataset.ci='cand';
+    const cat=document.createElement('div'); cat.className='cat cand'; cat.style.setProperty('--c','#7a8290');
+    cat.innerHTML=`<span class="chev">▼</span><div class="cat-name"><span class="dot" style="background:#7a8290;box-shadow:0 0 10px #7a8290"></span>🕓 待审外环</div>
+      <div class="cat-en">Candidate buffer · 防过拟合缓冲</div><div class="cat-meta" style="color:#9aa6b8">${cand.length} 个待审</div>`;
+    const models=document.createElement('div'); models.className='models';
+    models.innerHTML=cand.map(cardHTML).join('');
+    cat.onclick=()=>{row.classList.toggle('collapsed');cat.classList.toggle('collapsed');draw();};
+    row.append(cat,models); catsEl.appendChild(row);
+  }
+
+  /* ---------- 连接线 ---------- */
+  const svg=document.getElementById('links'),canvas=document.getElementById('canvas'),rootNode=document.getElementById('rootNode');
+  let scale=1;
+  function center(el,side){const cr=canvas.getBoundingClientRect(),r=el.getBoundingClientRect();
+    return {x:((side==='r'?r.right:r.left)-cr.left)/scale, y:(r.top+r.height/2-cr.top)/scale};}
+  function path(a,b,color,dash){const dx=Math.max(40,(b.x-a.x)/2);
+    return `<path d="M ${a.x} ${a.y} C ${a.x+dx} ${a.y}, ${b.x-dx} ${b.y}, ${b.x} ${b.y}" stroke="${color}" stroke-width="2" fill="none" opacity="0.5"${dash?' stroke-dasharray="5 5"':''}/>`;}
+  function draw(){
+    const cr=canvas.getBoundingClientRect(); svg.setAttribute('width',cr.width/scale); svg.setAttribute('height',cr.height/scale);
+    let html=''; const rootR=center(rootNode,'r');
+    document.querySelectorAll('.cat-row').forEach(row=>{
+      const isCand=row.dataset.ci==='cand'; const color=isCand?'#7a8290':MM.categories[+row.dataset.ci].color;
+      const cat=row.querySelector('.cat'); html+=path(rootR,center(cat,'l'),color,isCand);
+      if(!row.classList.contains('collapsed')){const catR=center(cat,'r');
+        row.querySelectorAll('.model').forEach(mc=>{html+=path(catR,center(mc,'l'),color,isCand);});}
+    });
+    svg.innerHTML=html;
+  }
+
+  /* ---------- 覆盖度地图 ---------- */
+  function buildMap(){
+    const D=MM.disciplines,F=MM.functions;
+    const cnt={},cells={};
+    D.forEach(d=>F.forEach(f=>{cnt[d+'|'+f]=0;cells[d+'|'+f]=[];}));
+    core.forEach(m=>{const k=m.disc+'|'+m.func; if(k in cnt){cnt[k]++;cells[k].push(m);}});
+    let max=1; Object.values(cnt).forEach(v=>max=Math.max(max,v));
+    const heat=(v)=>{ if(v===0) return 'background:#241a1a;color:#7c5a5a;border-color:#4a2e2e';
+      const t=v/max; const g=Math.round(70+t*120); return `background:rgba(63,${g},106,${0.25+t*0.6});color:#eafff0`; };
+    let h='<table class="cov"><tr><th></th>';
+    F.forEach(f=>h+=`<th class="colh"><div>${f}</div></th>`); h+='<th class="tot">行计</th></tr>';
+    D.forEach(d=>{ let rowTot=0;
+      h+=`<tr><th class="rowh">${d}</th>`;
+      F.forEach(f=>{const v=cnt[d+'|'+f];rowTot+=v;
+        h+=`<td class="cell" style="${heat(v)}" data-k="${d}|${f}">${v||''}</td>`;});
+      h+=`<td class="tot">${rowTot}</td></tr>`;
+    });
+    h+='<tr><th class="rowh tot">列计</th>';
+    F.forEach(f=>{let c=0;D.forEach(d=>c+=cnt[d+'|'+f]); h+=`<td class="tot">${c}</td>`;});
+    h+='<td></td></tr></table>';
+    document.getElementById('covTable').innerHTML=h;
+    // 点击格子列出模型
+    document.querySelectorAll('td.cell').forEach(td=>td.onclick=()=>{
+      const k=td.dataset.k, list=cells[k];
+      document.getElementById('cellList').innerHTML = list.length
+        ? `<b>${k.replace('|',' × ')}</b>（${list.length}）：` + list.map(m=>m.cn).join('、')
+        : `<b>${k.replace('|',' × ')}</b> —— 这是个<b>缺口</b>，目前没有模型。考虑补一个属于「${k.split('|')[0]}」且用于「${k.split('|')[1]}」的模型。`;
+    });
+    // 最空的格子 → 建议
+    const empties=Object.keys(cnt).filter(k=>cnt[k]===0);
+    const gl=document.getElementById('gapList');
+    gl.innerHTML = empties.slice(0,14).map(k=>`<span class="gap-chip">${k.replace('|',' × ')}</span>`).join('')
+      || '<span class="gap-chip b">覆盖良好，暂无空格——可考虑给 disciplines / functions 增加新维度来扩展边界。</span>';
+  }
+
+  /* ---------- 视图切换 ---------- */
+  const stage=document.getElementById('stage'),mapView=document.getElementById('mapView'),legend=document.getElementById('legend'),hint=document.getElementById('hint');
+  document.getElementById('vTree').onclick=()=>{toggleView(true)};
+  document.getElementById('vMap').onclick=()=>{toggleView(false)};
+  function toggleView(tree){
+    document.getElementById('vTree').classList.toggle('on',tree);
+    document.getElementById('vMap').classList.toggle('on',!tree);
+    stage.style.display=tree?'block':'none';
+    mapView.style.display=tree?'none':'block';
+    legend.classList.toggle('hide',!tree); hint.style.display=tree?'block':'none';
+    if(tree) draw(); else buildMap();
+  }
+
+  /* ---------- 缩放/平移/搜索/折叠/高亮 ---------- */
+  const zoomLabel=document.getElementById('zoomLabel');
+  function applyZoom(){canvas.style.transform=`scale(${scale})`;zoomLabel.textContent=Math.round(scale*100)+'%';draw();}
+  document.getElementById('zoomIn').onclick=()=>{scale=Math.min(2,scale+0.1);applyZoom();};
+  document.getElementById('zoomOut').onclick=()=>{scale=Math.max(0.4,scale-0.1);applyZoom();};
+  document.getElementById('expandAll').onclick=()=>{document.querySelectorAll('.cat-row,.cat').forEach(e=>e.classList.remove('collapsed'));draw();};
+  document.getElementById('collapseAll').onclick=()=>{document.querySelectorAll('.cat-row,.cat').forEach(e=>e.classList.add('collapsed'));draw();};
+  document.getElementById('printBtn').onclick=()=>{document.querySelectorAll('.cat-row').forEach(r=>r.classList.remove('collapsed'));draw();setTimeout(()=>window.print(),200);};
+  stage.addEventListener('wheel',e=>{if(e.ctrlKey||e.metaKey){e.preventDefault();scale=Math.min(2,Math.max(0.4,scale+(e.deltaY<0?0.08:-0.08)));applyZoom();}},{passive:false});
+  let drag=false,sx,sy,sl,st;
+  stage.addEventListener('mousedown',e=>{if(e.target.closest('.cat')||e.target.closest('input')||e.target.closest('.model'))return;drag=true;stage.classList.add('grabbing');sx=e.clientX;sy=e.clientY;sl=stage.scrollLeft;st=stage.scrollTop;});
+  window.addEventListener('mousemove',e=>{if(!drag)return;stage.scrollLeft=sl-(e.clientX-sx);stage.scrollTop=st-(e.clientY-sy);});
+  window.addEventListener('mouseup',()=>{drag=false;stage.classList.remove('grabbing');});
+  const search=document.getElementById('search');
+  search.oninput=()=>{const q=search.value.trim().toLowerCase();
+    document.querySelectorAll('.model').forEach(c=>{c.classList.remove('dim','hit');
+      if(!q)return; c.dataset.search.includes(q)?c.classList.add('hit'):c.classList.add('dim');});
+    if(q)document.querySelectorAll('.cat-row').forEach(r=>r.classList.remove('collapsed'));
+    draw(); const f=document.querySelector('.model.hit'); if(f)f.scrollIntoView({behavior:'smooth',block:'center'});};
+  let activeCat=-1;
+  function highlightCat(ci){activeCat=(activeCat===ci)?-1:ci;
+    document.querySelectorAll('.cat-row').forEach(row=>{const t=(+row.dataset.ci===ci);
+      row.querySelectorAll('.model').forEach(m=>{m.classList.remove('dim','hit');
+        if(activeCat===-1)return; t?m.classList.add('hit'):m.classList.add('dim');});});draw();}
+
+  window.addEventListener('load',()=>{draw();setTimeout(draw,300);});
+  window.addEventListener('resize',()=>{if(stage.style.display!=='none')draw();});
+  draw();
+})();
+</script>
+</body>
+</html>
